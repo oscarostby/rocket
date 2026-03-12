@@ -1,5 +1,5 @@
 import { createPartInstance } from './Parts.js';
-import { isCompatible, nodeWorldPosition } from './AttachmentNodes.js';
+import { isCompatible, nodeWorldPosition, rotateLocalPosition } from './AttachmentNodes.js';
 
 export class RocketBuilder {
   constructor() {
@@ -23,14 +23,22 @@ export class RocketBuilder {
         if (!node.occupied) out.push({ partUid: part.uid, nodeKey: node.key, node });
       });
       if (part.type !== 'fin') {
-        out.push({ partUid: part.uid, nodeKey: 'radial-left', node: { nodeType: 'radial', nodePosition: { x: -part.radius, y: 0 }, occupied: false } });
-        out.push({ partUid: part.uid, nodeKey: 'radial-right', node: { nodeType: 'radial', nodePosition: { x: part.radius, y: 0 }, occupied: false } });
+        if (!this.hasAttachmentOnNode(part.uid, 'radial-left')) {
+          out.push({ partUid: part.uid, nodeKey: 'radial-left', node: { nodeType: 'radial', nodePosition: { x: -part.radius, y: 0 }, occupied: false } });
+        }
+        if (!this.hasAttachmentOnNode(part.uid, 'radial-right')) {
+          out.push({ partUid: part.uid, nodeKey: 'radial-right', node: { nodeType: 'radial', nodePosition: { x: part.radius, y: 0 }, occupied: false } });
+        }
       }
     });
     return out;
   }
 
-  findSnap(partId, world, rotation = 0, threshold = 0.65) {
+  hasAttachmentOnNode(partUid, nodeKey) {
+    return this.parts.some((p) => p.attachedTo?.uid === partUid && p.attachedTo?.nodeKey === nodeKey);
+  }
+
+  findSnap(partId, world, rotation = 0, threshold = 0.45) {
     const newPart = createPartInstance(partId);
     const candidateNodes = newPart.nodes;
     let best = null;
@@ -42,8 +50,9 @@ export class RocketBuilder {
       candidateNodes.forEach((sourceNode) => {
         if (!isCompatible(sourceNode.nodeType, target.node.nodeType)) return;
 
-        const x = targetWorld.x - sourceNode.nodePosition.x;
-        const y = targetWorld.y - sourceNode.nodePosition.y;
+        const sourceLocal = rotateLocalPosition(sourceNode.nodePosition, rotation);
+        const x = targetWorld.x - sourceLocal.x;
+        const y = targetWorld.y - sourceLocal.y;
         const d = Math.hypot(world.x - x, world.y - y);
         if (d <= threshold && (!best || d < best.d)) {
           best = { d, partX: x, partY: y, sourceNode, target, rotation };

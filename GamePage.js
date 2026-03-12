@@ -57,7 +57,8 @@ export function createGamePage(root) {
     launch: null,
     freeCamera: false,
     panning: false,
-    lastPan: null
+    lastPan: null,
+    lastDragWorld: null
   };
 
   const partsList = root.querySelector('#parts-list');
@@ -78,9 +79,18 @@ export function createGamePage(root) {
           <span>${part.mass.toFixed(2)} t · ${part.thrust || 0} kN · ${part.fuelCapacity || 0} u</span>
         </div>
       `;
-      item.addEventListener('dragstart', () => { state.dragging = part.id; });
+      item.addEventListener('dragstart', (e) => {
+        state.dragging = part.id;
+        state.lastDragWorld = null;
+        e.dataTransfer.setData('text/plain', part.id);
+        const pixel = document.createElement('canvas');
+        pixel.width = 1;
+        pixel.height = 1;
+        e.dataTransfer.setDragImage(pixel, 0, 0);
+      });
       item.addEventListener('dragend', () => {
         state.dragging = null;
+        state.lastDragWorld = null;
         renderer.renderSnapNodes([]);
         redraw();
       });
@@ -118,11 +128,15 @@ export function createGamePage(root) {
 
   const redraw = (ghostPart = null, snap = null) => {
     renderer.renderRocket(builder.parts, ghostPart);
-    const nodes = builder.getOpenNodes().map((n) => {
-      const p = builder.getPart(n.partUid);
-      return { ...n, world: nodeWorldPosition(p, n.node) };
-    });
-    renderer.renderSnapNodes(nodes, snap?.target);
+    if (state.dragging) {
+      const nodes = builder.getOpenNodes().map((n) => {
+        const p = builder.getPart(n.partUid);
+        return { ...n, world: nodeWorldPosition(p, n.node) };
+      });
+      renderer.renderSnapNodes(nodes, snap?.target);
+    } else {
+      renderer.renderSnapNodes([]);
+    }
     renderer.updateCamera(builder.bounds(placedParts()));
     refreshStats();
     renderer.frame();
@@ -173,6 +187,7 @@ export function createGamePage(root) {
     if (!state.dragging) return;
     e.preventDefault();
     const world = renderer.screenToWorld(e.clientX, e.clientY);
+    state.lastDragWorld = world;
     const snap = builder.findSnap(state.dragging, world, state.rotation);
 
     const part = findPart(state.dragging);
@@ -186,7 +201,8 @@ export function createGamePage(root) {
   center.addEventListener('drop', (e) => {
     if (!state.dragging) return;
     e.preventDefault();
-    const world = renderer.screenToWorld(e.clientX, e.clientY);
+    const world = state.lastDragWorld || renderer.screenToWorld(e.clientX, e.clientY);
+    state.lastDragWorld = null;
     const snap = builder.findSnap(state.dragging, world, state.rotation);
     if (snap) builder.placePart(state.dragging, snap);
     else builder.placeFloatingPart(state.dragging, world, state.rotation);
