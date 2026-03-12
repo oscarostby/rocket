@@ -7,11 +7,17 @@ export class RocketBuilder {
     this.root = null;
   }
 
-  initDefault() {
-    const pod = createPartInstance('mk1-pod');
+  clear() {
+    this.parts = [];
+    this.root = null;
+  }
+
+  initDefault(partId = 'mk1-pod') {
+    const pod = createPartInstance(partId);
     pod.y = 2;
     this.parts.push(pod);
     this.root = pod.uid;
+    return pod;
   }
 
   getPart(uid) { return this.parts.find((p) => p.uid === uid); }
@@ -52,6 +58,38 @@ export class RocketBuilder {
     });
 
     return best;
+  }
+
+  attachPartToNode(partId, targetPartUid, targetNodeKey, preferredSourceKey = null, rotation = 0) {
+    const targetPart = this.getPart(targetPartUid);
+    if (!targetPart) return null;
+
+    const targetNode = targetNodeKey.startsWith('radial-')
+      ? { nodeType: 'radial', nodePosition: { x: targetNodeKey === 'radial-left' ? -targetPart.radius : targetPart.radius, y: 0 }, occupied: false }
+      : targetPart.nodes.find((n) => n.key === targetNodeKey);
+
+    if (!targetNode || targetNode.occupied) return null;
+
+    const part = createPartInstance(partId);
+    const sourceCandidates = preferredSourceKey
+      ? part.nodes.filter((n) => n.key === preferredSourceKey)
+      : part.nodes;
+
+    const sourceNode = sourceCandidates.find((n) => isCompatible(n.nodeType, targetNode.nodeType));
+    if (!sourceNode) return null;
+
+    const targetWorld = nodeWorldPosition(targetPart, targetNode);
+    part.x = targetWorld.x - sourceNode.nodePosition.x;
+    part.y = targetWorld.y - sourceNode.nodePosition.y;
+    part.rotation = rotation;
+    part.attachedTo = { uid: targetPartUid, nodeKey: targetNodeKey };
+
+    const occupiedTargetNode = targetPart.nodes.find((n) => n.key === targetNodeKey);
+    if (occupiedTargetNode) occupiedTargetNode.occupied = true;
+    sourceNode.occupied = true;
+
+    this.parts.push(part);
+    return part;
   }
 
   placePart(partId, snap) {

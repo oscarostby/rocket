@@ -4,6 +4,57 @@ import { nodeWorldPosition } from './rocket/AttachmentNodes.js';
 import { RocketRenderer } from './rocket/RocketRenderer.js';
 import { LaunchSimulation } from './rocket/LaunchSimulation.js';
 
+const PRESETS = [
+  {
+    id: 'hopper',
+    name: 'Training Hopper',
+    description: 'Simple low-altitude rocket for learning controls.',
+    previewBars: [20, 30, 30, 18],
+    build(builder) {
+      builder.clear();
+      const root = builder.initDefault('mk1-pod');
+      const tank = builder.attachPartToNode('tank-s', root.uid, 'bottom');
+      const engine = builder.attachPartToNode('engine-s', tank.uid, 'bottom');
+      builder.attachPartToNode('fin-s', tank.uid, 'radial-left');
+      builder.attachPartToNode('fin-s', tank.uid, 'radial-right');
+      return engine;
+    }
+  },
+  {
+    id: 'orbiter-lite',
+    name: 'Orbiter Lite',
+    description: 'Balanced stack with better fuel and thrust.',
+    previewBars: [22, 34, 34, 26, 20],
+    build(builder) {
+      builder.clear();
+      const root = builder.initDefault('probe-core');
+      const tankA = builder.attachPartToNode('tank-m', root.uid, 'bottom');
+      const decoupler = builder.attachPartToNode('decoupler', tankA.uid, 'bottom');
+      const tankB = builder.attachPartToNode('tank-s', decoupler.uid, 'bottom');
+      builder.attachPartToNode('engine-m', tankB.uid, 'bottom');
+      builder.attachPartToNode('winglet', tankB.uid, 'radial-left');
+      builder.attachPartToNode('winglet', tankB.uid, 'radial-right');
+    }
+  },
+  {
+    id: 'booster-stack',
+    name: 'Heavy Booster',
+    description: 'Prebuilt heavy lifter with side tanks.',
+    previewBars: [24, 38, 38, 38, 26],
+    build(builder) {
+      builder.clear();
+      const root = builder.initDefault('mk1-pod');
+      const tank = builder.attachPartToNode('tank-l', root.uid, 'bottom');
+      const tank2 = builder.attachPartToNode('tank-m', tank.uid, 'bottom');
+      builder.attachPartToNode('engine-l', tank2.uid, 'bottom');
+      builder.attachPartToNode('side-booster', tank2.uid, 'radial-left');
+      builder.attachPartToNode('side-booster', tank2.uid, 'radial-right');
+      builder.attachPartToNode('fin-l', tank2.uid, 'radial-left');
+      builder.attachPartToNode('fin-l', tank2.uid, 'radial-right');
+    }
+  }
+];
+
 export function createGamePage(root) {
   root.innerHTML = `<div class="game-layout">
     <aside class="panel left">
@@ -13,6 +64,8 @@ export function createGamePage(root) {
         <button id="rotate-btn" class="sub-btn">Rotate (R)</button>
         <button id="camera-mode-btn" class="sub-btn">Free Camera: Off</button>
       </div>
+      <div class="group-title">Quick Start Blueprints</div>
+      <div id="preset-list" class="preset-list"></div>
       <div id="parts-list"></div>
     </aside>
     <main class="center-area">
@@ -43,6 +96,23 @@ export function createGamePage(root) {
     activeSnap: null,
     ghostPart: null
   };
+
+  const presetList = root.querySelector('#preset-list');
+  PRESETS.forEach((preset) => {
+    const card = document.createElement('button');
+    card.className = 'preset-card';
+    const bars = preset.previewBars.map((w) => `<span style="width:${w}px"></span>`).join('');
+    card.innerHTML = `<div class="preset-info"><strong>${preset.name}</strong><small>${preset.description}</small></div><div class="preset-preview">${bars}</div>`;
+    card.addEventListener('click', () => {
+      preset.build(builder);
+      state.dragging = null;
+      state.activeSnap = null;
+      state.ghostPart = null;
+      root.querySelector('#status').textContent = `Loaded blueprint: ${preset.name}`;
+      redraw();
+    });
+    presetList.appendChild(card);
+  });
 
   const partsList = root.querySelector('#parts-list');
   Object.entries(PARTS).forEach(([group, parts]) => {
