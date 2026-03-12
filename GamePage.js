@@ -5,10 +5,29 @@ import { RocketRenderer } from './rocket/RocketRenderer.js';
 import { LaunchSimulation } from './rocket/LaunchSimulation.js';
 
 export function createGamePage(root) {
+  const groupTitles = {
+    command: 'Command & Control',
+    fuel: 'Fuel Tanks',
+    engines: 'Propulsion',
+    stability: 'Aero & Control',
+    utility: 'Utility'
+  };
+
+  const partIcons = {
+    command: '🛰️',
+    fuel: '🛢️',
+    engine: '🔥',
+    fin: '🪶',
+    decoupler: '🔗',
+    parachute: '🪂',
+    nosecone: '◢',
+    adapter: '⛛'
+  };
+
   root.innerHTML = `<div class="game-layout">
     <aside class="panel left">
       <h2>Vehicle Assembly Building</h2>
-      <p class="panel-note">Drag parts onto nodes. Rotate with <kbd>R</kbd>. Right-mouse drag to pan camera. Mouse wheel to zoom.</p>
+      <p class="panel-note">Drag parts onto nodes. Rotate with <kbd>R</kbd>. Right-mouse drag pans camera in free mode.</p>
       <div class="controls-row">
         <button id="rotate-btn" class="sub-btn">Rotate (R)</button>
         <button id="camera-mode-btn" class="sub-btn">Free Camera: Off</button>
@@ -45,14 +64,20 @@ export function createGamePage(root) {
   Object.entries(PARTS).forEach(([group, parts]) => {
     const title = document.createElement('div');
     title.className = 'group-title';
-    title.textContent = group;
+    title.textContent = groupTitles[group] || group;
     partsList.appendChild(title);
 
     parts.forEach((part) => {
       const item = document.createElement('div');
       item.className = 'part-item';
       item.draggable = true;
-      item.innerHTML = `<strong>${part.name}</strong><span>${part.mass.toFixed(2)} t · ${part.thrust || 0} kN</span>`;
+      item.innerHTML = `
+        <div class="part-icon">${partIcons[part.type] || '⬢'}</div>
+        <div class="part-main">
+          <strong>${part.name}</strong>
+          <span>${part.mass.toFixed(2)} t · ${part.thrust || 0} kN · ${part.fuelCapacity || 0} u</span>
+        </div>
+      `;
       item.addEventListener('dragstart', () => { state.dragging = part.id; });
       item.addEventListener('dragend', () => {
         state.dragging = null;
