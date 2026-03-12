@@ -18,6 +18,12 @@ export class RocketBuilder {
     this.parts.push(pod);
     this.root = pod.uid;
     return pod;
+
+  initDefault() {
+    const pod = createPartInstance('mk1-pod');
+    pod.y = 2;
+    this.parts.push(pod);
+    this.root = pod.uid;
   }
 
   getPart(uid) { return this.parts.find((p) => p.uid === uid); }
@@ -91,6 +97,7 @@ export class RocketBuilder {
     this.parts.push(part);
     return part;
   }
+
 
   placePart(partId, snap) {
     const part = createPartInstance(partId);

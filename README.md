@@ -8,6 +8,7 @@ A polished, visual 2D rocket construction and launch game built with Three.js.
 - Snap-node attachment system with valid/invalid highlights
 - Ghost part previews while dragging
 - Quick-start blueprints with mini previews for easy starting builds
+
 - Rotate parts with **R** and toggle free camera with **F**
 - Build editor camera supports zoom and right-drag panning in free mode
 - More parts: nose cone, adapter, lander can, side booster tank, winglet, vacuum engine

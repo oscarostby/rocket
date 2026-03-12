@@ -66,6 +66,7 @@ export function createGamePage(root) {
       </div>
       <div class="group-title">Quick Start Blueprints</div>
       <div id="preset-list" class="preset-list"></div>
+
       <div id="parts-list"></div>
     </aside>
     <main class="center-area">
@@ -114,6 +115,10 @@ export function createGamePage(root) {
     presetList.appendChild(card);
   });
 
+
+    lastPan: null
+  };
+
   const partsList = root.querySelector('#parts-list');
   Object.entries(PARTS).forEach(([group, parts]) => {
     const title = document.createElement('div');
@@ -131,6 +136,13 @@ export function createGamePage(root) {
         state.pointer = { x: e.clientX, y: e.clientY };
         center.classList.add('drag-active');
         renderDragPreview();
+      item.draggable = true;
+      item.innerHTML = `<strong>${part.name}</strong><span>${part.mass.toFixed(2)} t · ${part.thrust || 0} kN</span>`;
+      item.addEventListener('dragstart', () => { state.dragging = part.id; });
+      item.addEventListener('dragend', () => {
+        state.dragging = null;
+        renderer.renderSnapNodes([]);
+        redraw();
       });
       partsList.appendChild(item);
     });
@@ -220,6 +232,7 @@ export function createGamePage(root) {
     state.activeSnap = null;
     state.ghostPart = null;
     center.classList.remove('drag-active');
+
     redraw();
   };
 
@@ -234,6 +247,8 @@ export function createGamePage(root) {
   center.addEventListener('contextmenu', (e) => e.preventDefault());
   center.addEventListener('mousedown', (e) => {
     if (!state.freeCamera || e.button !== 2 || state.dragging) return;
+
+    if (!state.freeCamera || e.button !== 2) return;
     state.panning = true;
     state.lastPan = { x: e.clientX, y: e.clientY };
   });
@@ -244,6 +259,7 @@ export function createGamePage(root) {
       renderDragPreview();
       return;
     }
+
 
     if (!state.panning || !state.lastPan) return;
     const prev = renderer.screenToWorld(state.lastPan.x, state.lastPan.y);
@@ -259,12 +275,41 @@ export function createGamePage(root) {
       state.panning = false;
       state.lastPan = null;
     }
+
+  window.addEventListener('mouseup', () => {
+    state.panning = false;
+    state.lastPan = null;
+  });
+
+  center.addEventListener('dragover', (e) => {
+    if (!state.dragging) return;
+    e.preventDefault();
+    const world = renderer.screenToWorld(e.clientX, e.clientY);
+    const snap = builder.findSnap(state.dragging, world, state.rotation);
+
+    let ghost = null;
+    if (snap) {
+      const part = findPart(state.dragging);
+      ghost = { ...part, x: snap.partX, y: snap.partY, rotation: state.rotation };
+    }
+
+    redraw(ghost, snap);
+  });
+
+  center.addEventListener('drop', (e) => {
+    if (!state.dragging) return;
+    e.preventDefault();
+    const world = renderer.screenToWorld(e.clientX, e.clientY);
+    const snap = builder.findSnap(state.dragging, world, state.rotation);
+    if (snap) builder.placePart(state.dragging, snap);
+    redraw();
   });
 
   center.addEventListener('wheel', (e) => {
     e.preventDefault();
     renderer.zoom = Math.min(3, Math.max(0.25, renderer.zoom + (e.deltaY > 0 ? -0.1 : 0.1)));
     redraw(state.ghostPart, state.activeSnap);
+    redraw();
   }, { passive: false });
 
   root.querySelector('#launch-btn').addEventListener('click', () => {
@@ -276,6 +321,8 @@ export function createGamePage(root) {
       root.querySelector('#status').textContent = physics.failed ? `Failure: ${physics.reason}` : 'Nominal flight';
       builder.parts.forEach((part) => { part.y = 2 + physics.altitude / 180; });
       redraw(state.ghostPart, state.activeSnap);
+
+      redraw();
     });
 
     state.launch.start();
