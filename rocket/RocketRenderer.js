@@ -3,72 +3,149 @@ import * as THREE from 'three';
 export class RocketRenderer {
   constructor(container) {
     this.scene = new THREE.Scene();
-    this.camera = new THREE.OrthographicCamera(-8, 8, 8, -2, 0.1, 160);
-    this.camera.position.set(0, 5, 18);
+    this.camera = new THREE.OrthographicCamera(-8, 8, 8, -2, 0.1, 60);
+    this.camera.position.set(0, 3, 12);
     this.camera.lookAt(0, 3, 0);
 
     this.zoom = 1;
     this.autoFrame = true;
     this.cameraOffset = { x: 0, y: 0 };
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setClearColor('#87b9ff');
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.id = 'three-canvas';
 
-    this.scene.add(new THREE.HemisphereLight('#a6d6ff', '#294235', 1.1));
-    const key = new THREE.DirectionalLight('#fff4de', 1.2);
-    key.position.set(10, 14, 10);
-    this.scene.add(key);
-    const fill = new THREE.DirectionalLight('#99b7ff', 0.55);
-    fill.position.set(-8, 7, 8);
-    this.scene.add(fill);
-
-    this.grid = new THREE.GridHelper(46, 92, '#4da5ff', '#284771');
-    this.grid.rotation.x = Math.PI / 2;
-    this.grid.position.z = -2.4;
-    this.scene.add(this.grid);
-
+    this.background = new THREE.Group();
     this.partGroup = new THREE.Group();
     this.snapGroup = new THREE.Group();
     this.effects = new THREE.Group();
-    this.scene.add(this.partGroup, this.snapGroup, this.effects);
+    this.scene.add(this.background, this.partGroup, this.snapGroup, this.effects);
 
     this.addEnvironment();
     window.addEventListener('resize', () => this.resize(container));
     this.resize(container);
   }
 
+  createRect(width, height, color, z = 0, opacity = 1) {
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(width, height),
+      new THREE.MeshBasicMaterial({ color, transparent: opacity < 1, opacity })
+    );
+    mesh.position.z = z;
+    return mesh;
+  }
+
+  createCircle(radius, color, z = 0, opacity = 1) {
+    const mesh = new THREE.Mesh(
+      new THREE.CircleGeometry(radius, 24),
+      new THREE.MeshBasicMaterial({ color, transparent: opacity < 1, opacity })
+    );
+    mesh.position.z = z;
+    return mesh;
+  }
+
+  createOutlinedShape(shape, color, ghost = false, z = 0) {
+    const group = new THREE.Group();
+    const fill = new THREE.Mesh(
+      new THREE.ShapeGeometry(shape),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: ghost,
+        opacity: ghost ? 0.5 : 1
+      })
+    );
+    fill.position.z = z;
+
+    const line = new THREE.LineLoop(
+      new THREE.BufferGeometry().setFromPoints(shape.getPoints().map((p) => new THREE.Vector3(p.x, p.y, z + 0.02))),
+      new THREE.LineBasicMaterial({
+        color: ghost ? '#bfdbfe' : '#1f2937',
+        transparent: ghost,
+        opacity: ghost ? 0.9 : 1
+      })
+    );
+
+    group.add(fill, line);
+    return group;
+  }
+
+  roundedRectShape(width, height, radius) {
+    const w = width / 2;
+    const h = height / 2;
+    const r = Math.min(radius, w, h);
+    const shape = new THREE.Shape();
+    shape.moveTo(-w + r, -h);
+    shape.lineTo(w - r, -h);
+    shape.quadraticCurveTo(w, -h, w, -h + r);
+    shape.lineTo(w, h - r);
+    shape.quadraticCurveTo(w, h, w - r, h);
+    shape.lineTo(-w + r, h);
+    shape.quadraticCurveTo(-w, h, -w, h - r);
+    shape.lineTo(-w, -h + r);
+    shape.quadraticCurveTo(-w, -h, -w + r, -h);
+    return shape;
+  }
+
   addEnvironment() {
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 30), new THREE.MeshStandardMaterial({ color: '#2f9457', roughness: 0.9 }));
-    ground.position.set(0, -2.4, -3.2);
-    this.scene.add(ground);
+    const sky = this.createRect(120, 85, '#81b7ff', -8);
+    sky.position.set(0, 20, -8);
+    this.background.add(sky);
 
-    const pad = new THREE.Mesh(new THREE.BoxGeometry(7, 0.55, 2.4), new THREE.MeshStandardMaterial({ color: '#64748b', metalness: 0.4, roughness: 0.45 }));
-    pad.position.set(0, -1.8, -0.8);
-    this.scene.add(pad);
+    const highAtmosphere = this.createRect(120, 25, '#b4dbff', -7, 0.65);
+    highAtmosphere.position.set(0, 9, -7);
+    this.background.add(highAtmosphere);
 
-    const gantry = new THREE.Mesh(new THREE.BoxGeometry(0.5, 7, 0.5), new THREE.MeshStandardMaterial({ color: '#97a3b7', metalness: 0.7, roughness: 0.35 }));
-    gantry.position.set(-2.8, 1.1, -1);
-    this.scene.add(gantry);
+    const mountains = this.createRect(120, 6, '#6f9ccc', -6.5, 0.5);
+    mountains.position.set(0, 0, -6.5);
+    this.background.add(mountains);
+
+    const ground = this.createRect(120, 8, '#4a8247', -6);
+    ground.position.set(0, -3.2, -6);
+    this.background.add(ground);
+
+    const runway = this.createRect(120, 0.55, '#365e35', -5.8);
+    runway.position.set(0, 0.2, -5.8);
+    this.background.add(runway);
+
+    const pad = this.createRect(7, 0.74, '#66758c', -2);
+    pad.position.set(0, -1.85, -2);
+    const padMark = this.createRect(1.8, 0.08, '#9fb0c8', -1.95);
+    padMark.position.set(0, -1.85, -1.95);
+    this.background.add(pad, padMark);
+
+    const tower = this.createRect(0.62, 6.2, '#8f9db2', -2);
+    tower.position.set(-2.72, 1.05, -2);
+    const arm = this.createRect(1.45, 0.22, '#70849d', -2);
+    arm.position.set(-2.2, 2.8, -2);
+    this.background.add(tower, arm);
 
     this.clouds = new THREE.Group();
-    for (let i = 0; i < 14; i += 1) {
-      const cloud = new THREE.Mesh(new THREE.SphereGeometry(0.35 + Math.random() * 0.65, 14, 14), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.42 }));
-      cloud.position.set(-14 + i * 2.15, 4.4 + Math.random() * 3.5, -9);
+    for (let i = 0; i < 10; i += 1) {
+      const cloud = new THREE.Group();
+      const x = -18 + i * 4;
+      const y = 6 + Math.random() * 3.6;
+      cloud.add(this.createCircle(0.85, '#ffffff', -6.3, 0.78));
+      const p2 = this.createCircle(0.62, '#ffffff', -6.3, 0.78);
+      p2.position.x = -0.78;
+      const p3 = this.createCircle(0.72, '#ffffff', -6.3, 0.78);
+      p3.position.x = 0.82;
+      cloud.add(p2, p3);
+      cloud.position.set(x, y, -6.3);
       this.clouds.add(cloud);
     }
-    this.scene.add(this.clouds);
+    this.background.add(this.clouds);
 
     this.stars = new THREE.Group();
-    for (let i = 0; i < 180; i += 1) {
-      const star = new THREE.Mesh(new THREE.SphereGeometry(0.03 + Math.random() * 0.04, 8, 8), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
-      star.position.set((Math.random() - 0.5) * 45, 1 + Math.random() * 26, -16);
+    for (let i = 0; i < 140; i += 1) {
+      const star = this.createCircle(0.03 + Math.random() * 0.04, '#ffffff', -7.7, 0.95);
+      star.position.set((Math.random() - 0.5) * 45, 2 + Math.random() * 24, -7.7);
       star.visible = false;
       this.stars.add(star);
     }
-    this.scene.add(this.stars);
+    this.background.add(this.stars);
   }
 
   setAutoFrame(enabled) {
@@ -84,56 +161,112 @@ export class RocketRenderer {
     this.cameraOffset.y += dyWorld;
   }
 
-  makeMaterial(part, ghost) {
-    return new THREE.MeshStandardMaterial({
-      color: ghost ? '#dbeafe' : part.color || '#cbd5e1',
-      transparent: ghost,
-      opacity: ghost ? 0.45 : 1,
-      roughness: 0.45,
-      metalness: part.type === 'engine' ? 0.65 : 0.25
-    });
+  buildFuelTank(part, group, bodyColor, ghost) {
+    const body = this.createOutlinedShape(this.roundedRectShape(part.radius * 1.95, part.height, part.radius * 0.24), bodyColor, ghost);
+    const stripe = this.createRect(part.radius * 1.8, 0.14, '#e2e8f0', 0.09, ghost ? 0.6 : 1);
+    stripe.position.y = part.height * 0.14;
+    const capTop = this.createRect(part.radius * 1.85, 0.08, '#1f2937', 0.1, ghost ? 0.6 : 0.95);
+    capTop.position.y = part.height * 0.47;
+    const capBottom = this.createRect(part.radius * 1.85, 0.08, '#1f2937', 0.1, ghost ? 0.6 : 0.95);
+    capBottom.position.y = -part.height * 0.47;
+    group.add(body, stripe, capTop, capBottom);
+  }
+
+  buildEngine(part, group, ghost) {
+    const mount = this.createRect(part.radius * 1.35, part.height * 0.28, '#64748b', 0.06, ghost ? 0.6 : 1);
+    mount.position.y = part.height * 0.34;
+
+    const bellShape = new THREE.Shape();
+    bellShape.moveTo(-part.radius * 0.44, part.height * 0.2);
+    bellShape.lineTo(part.radius * 0.44, part.height * 0.2);
+    bellShape.lineTo(part.radius * 0.94, -part.height * 0.5);
+    bellShape.lineTo(-part.radius * 0.94, -part.height * 0.5);
+    const bell = this.createOutlinedShape(bellShape, ghost ? '#fdba74' : '#f97316', ghost, 0.04);
+
+    const nozzle = this.createRect(part.radius * 0.56, part.height * 0.16, '#1f2937', 0.1, ghost ? 0.6 : 1);
+    nozzle.position.y = -part.height * 0.46;
+
+    const pipe = this.createRect(part.radius * 0.14, part.height * 0.25, '#334155', 0.11, ghost ? 0.6 : 1);
+    pipe.position.y = -part.height * 0.02;
+    group.add(mount, bell, nozzle, pipe);
+  }
+
+  buildCommandPod(part, group, bodyColor, ghost) {
+    const podShape = new THREE.Shape();
+    podShape.moveTo(-part.radius * 0.92, -part.height * 0.45);
+    podShape.lineTo(part.radius * 0.92, -part.height * 0.45);
+    podShape.quadraticCurveTo(part.radius * 0.84, part.height * 0.18, 0, part.height * 0.5);
+    podShape.quadraticCurveTo(-part.radius * 0.84, part.height * 0.18, -part.radius * 0.92, -part.height * 0.45);
+    const pod = this.createOutlinedShape(podShape, bodyColor, ghost);
+    const window = this.createCircle(part.radius * 0.22, '#2563eb', 0.08, ghost ? 0.5 : 0.95);
+    window.position.y = part.height * 0.1;
+    const hatch = this.createRect(part.radius * 1.1, 0.1, '#334155', 0.08, ghost ? 0.5 : 0.95);
+    hatch.position.y = -part.height * 0.25;
+    group.add(pod, window, hatch);
   }
 
   partMesh(part, ghost = false) {
-    const material = this.makeMaterial(part, ghost);
-    let mesh;
+    const group = new THREE.Group();
+    const bodyColor = ghost ? '#dbeafe' : part.color || '#cbd5e1';
 
     if (part.type === 'fuel') {
-      const group = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(part.radius, part.radius, part.height, 26), material);
-      const stripe = new THREE.Mesh(new THREE.TorusGeometry(part.radius * 0.96, 0.035, 10, 26), new THREE.MeshStandardMaterial({ color: '#e5e7eb', metalness: 0.15, roughness: 0.7, transparent: ghost, opacity: ghost ? 0.45 : 1 }));
-      stripe.rotation.x = Math.PI / 2;
-      stripe.position.y = part.height * 0.25;
-      group.add(body, stripe);
-      mesh = group;
+      this.buildFuelTank(part, group, bodyColor, ghost);
     } else if (part.type === 'engine') {
-      const group = new THREE.Group();
-      const bell = new THREE.Mesh(new THREE.ConeGeometry(part.radius, part.height, 26), material);
-      const chamber = new THREE.Mesh(new THREE.CylinderGeometry(part.radius * 0.5, part.radius * 0.5, part.height * 0.35, 16), new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.8, roughness: 0.3, transparent: ghost, opacity: ghost ? 0.55 : 1 }));
-      chamber.position.y = part.height * 0.4;
-      group.add(bell, chamber);
-      mesh = group;
+      this.buildEngine(part, group, ghost);
     } else if (part.type === 'fin') {
-      mesh = new THREE.Mesh(new THREE.ConeGeometry(part.radius, part.height, 3), material);
-      mesh.rotation.z = part.x >= 0 ? -Math.PI / 2 : Math.PI / 2;
-    } else if (part.type === 'decoupler' || part.type === 'adapter') {
-      mesh = new THREE.Mesh(new THREE.CylinderGeometry(part.radius * 0.85, part.radius, part.height, 24), material);
+      const finShape = new THREE.Shape();
+      finShape.moveTo(-part.radius * 0.28, part.height * 0.5);
+      finShape.lineTo(part.radius * 1.45, part.height * 0.24);
+      finShape.lineTo(part.radius * 1.2, -part.height * 0.52);
+      finShape.lineTo(-part.radius * 0.32, -part.height * 0.36);
+      const fin = this.createOutlinedShape(finShape, ghost ? '#86efac' : '#16a34a', ghost, 0.08);
+      group.add(fin);
+      group.rotation.z = part.x >= 0 ? -Math.PI / 2 : Math.PI / 2;
+    } else if (part.type === 'decoupler') {
+      const ring = this.createOutlinedShape(this.roundedRectShape(part.radius * 2, part.height, 0.08), ghost ? '#fde68a' : '#f59e0b', ghost);
+      group.add(ring);
+      for (let i = -2; i <= 2; i += 1) {
+        const bolt = this.createCircle(0.03, '#1f2937', 0.1, ghost ? 0.6 : 1);
+        bolt.position.x = i * part.radius * 0.42;
+        group.add(bolt);
+      }
+    } else if (part.type === 'adapter') {
+      const shape = new THREE.Shape();
+      shape.moveTo(-part.radius * 0.68, part.height * 0.5);
+      shape.lineTo(part.radius * 0.68, part.height * 0.5);
+      shape.lineTo(part.radius, -part.height * 0.5);
+      shape.lineTo(-part.radius, -part.height * 0.5);
+      const adapter = this.createOutlinedShape(shape, bodyColor, ghost);
+      const seam = this.createRect(part.radius * 1.7, 0.07, '#334155', 0.08, ghost ? 0.6 : 1);
+      seam.position.y = 0;
+      group.add(adapter, seam);
     } else if (part.type === 'nosecone') {
-      mesh = new THREE.Mesh(new THREE.ConeGeometry(part.radius, part.height, 24), material);
+      const shape = new THREE.Shape();
+      shape.moveTo(-part.radius, -part.height * 0.5);
+      shape.quadraticCurveTo(-part.radius * 0.45, part.height * 0.15, 0, part.height * 0.5);
+      shape.quadraticCurveTo(part.radius * 0.45, part.height * 0.15, part.radius, -part.height * 0.5);
+      const cone = this.createOutlinedShape(shape, bodyColor, ghost, 0.04);
+      group.add(cone);
+      const seam = this.createRect(part.radius * 1.8, 0.06, '#475569', 0.08, ghost ? 0.6 : 0.9);
+      seam.position.y = -part.height * 0.44;
+      group.add(seam);
     } else if (part.type === 'parachute') {
-      const group = new THREE.Group();
-      const can = new THREE.Mesh(new THREE.CylinderGeometry(part.radius * 0.85, part.radius * 0.85, part.height * 0.45, 20), material);
-      const cap = new THREE.Mesh(new THREE.SphereGeometry(part.radius * 0.75, 16, 12), new THREE.MeshStandardMaterial({ color: '#f472b6', roughness: 0.7, metalness: 0.1, transparent: ghost, opacity: ghost ? 0.45 : 1 }));
-      cap.position.y = part.height * 0.2;
-      group.add(can, cap);
-      mesh = group;
+      const canister = this.createOutlinedShape(this.roundedRectShape(part.radius * 1.85, part.height * 0.55, 0.1), '#64748b', ghost);
+      canister.position.y = -part.height * 0.2;
+      const canopyShape = new THREE.Shape();
+      canopyShape.moveTo(-part.radius * 0.95, 0);
+      canopyShape.quadraticCurveTo(0, part.height * 0.92, part.radius * 0.95, 0);
+      canopyShape.lineTo(-part.radius * 0.95, 0);
+      const canopy = this.createOutlinedShape(canopyShape, ghost ? '#f9a8d4' : '#ec4899', ghost, 0.06);
+      canopy.position.y = part.height * 0.06;
+      group.add(canister, canopy);
     } else {
-      mesh = new THREE.Mesh(new THREE.CapsuleGeometry(part.radius * 0.9, Math.max(0.1, part.height - part.radius), 4, 16), material);
+      this.buildCommandPod(part, group, bodyColor, ghost);
     }
 
-    mesh.position.set(part.x, part.y, 0);
-    mesh.rotation.z += part.rotation || 0;
-    return mesh;
+    group.position.set(part.x, part.y, 0);
+    group.rotation.z += part.rotation || 0;
+    return group;
   }
 
   renderRocket(parts, ghostPart = null) {
@@ -146,8 +279,16 @@ export class RocketRenderer {
     this.snapGroup.clear();
     nodes.forEach((n) => {
       const valid = validTarget && validTarget.partUid === n.partUid && validTarget.nodeKey === n.nodeKey;
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.03, 8, 16), new THREE.MeshBasicMaterial({ color: valid ? '#22c55e' : '#ef4444' }));
-      ring.position.set(n.world.x, n.world.y, 1.2);
+      const ring = new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints(
+          Array.from({ length: 24 }, (_, i) => {
+            const a = (Math.PI * 2 * i) / 24;
+            return new THREE.Vector3(Math.cos(a) * 0.13, Math.sin(a) * 0.13, 0.15);
+          })
+        ),
+        new THREE.LineBasicMaterial({ color: valid ? '#22c55e' : '#ef4444' })
+      );
+      ring.position.set(n.world.x, n.world.y, 0.15);
       this.snapGroup.add(ring);
     });
   }
@@ -183,36 +324,42 @@ export class RocketRenderer {
   }
 
   setSky(altitudeKm) {
-    let color = '#7ec4ff';
-    if (altitudeKm > 10 && altitudeKm <= 40) color = '#284786';
-    if (altitudeKm > 40) color = '#050816';
+    let color = '#87b9ff';
+    if (altitudeKm > 10 && altitudeKm <= 40) color = '#4a74b8';
+    if (altitudeKm > 40) color = '#0b1023';
     this.renderer.setClearColor(color);
     this.clouds.visible = altitudeKm < 20;
     this.stars.children.forEach((star) => { star.visible = altitudeKm > 40; });
-    this.grid.visible = altitudeKm < 18;
   }
 
   addFlame(active, x, y) {
     this.effects.clear();
     if (!active) return;
 
-    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.24, 1.1, 16), new THREE.MeshBasicMaterial({ color: '#fb923c' }));
-    flame.position.set(x, y - 0.8, 0.2);
-    flame.rotation.z = Math.PI;
-    this.effects.add(flame);
+    const outer = new THREE.Shape();
+    outer.moveTo(0, 0);
+    outer.lineTo(0.3, -1.2);
+    outer.lineTo(0, -0.9);
+    outer.lineTo(-0.3, -1.2);
+    const flame = this.createOutlinedShape(outer, '#f97316', false, 0.1);
+    flame.position.set(x, y - 0.72, 0.1);
+
+    const core = this.createRect(0.18, 0.72, '#fde68a', 0.12, 0.9);
+    core.position.set(x, y - 1.18, 0.12);
+    this.effects.add(flame, core);
 
     for (let i = 0; i < 14; i += 1) {
-      const puff = new THREE.Mesh(new THREE.SphereGeometry(0.06 + Math.random() * 0.1, 8, 8), new THREE.MeshBasicMaterial({ color: '#cbd5e1', transparent: true, opacity: 0.42 }));
-      puff.position.set(x + (Math.random() - 0.5) * 0.95, y - 1.1 - Math.random() * 0.8, -0.2);
+      const puff = this.createCircle(0.05 + Math.random() * 0.08, '#cbd5e1', 0.05, 0.45);
+      puff.position.set(x + (Math.random() - 0.5) * 0.9, y - 1.2 - Math.random() * 0.7, 0.05);
       this.effects.add(puff);
     }
   }
 
   explosion(x, y) {
     this.effects.clear();
-    for (let i = 0; i < 42; i += 1) {
-      const spark = new THREE.Mesh(new THREE.SphereGeometry(0.08 + Math.random() * 0.08, 8, 8), new THREE.MeshBasicMaterial({ color: i % 2 ? '#f97316' : '#facc15' }));
-      spark.position.set(x + (Math.random() - 0.5) * 2.1, y + (Math.random() - 0.5) * 2.1, 0.4);
+    for (let i = 0; i < 40; i += 1) {
+      const spark = this.createCircle(0.06 + Math.random() * 0.08, i % 2 ? '#f97316' : '#facc15', 0.2, 0.95);
+      spark.position.set(x + (Math.random() - 0.5) * 2.1, y + (Math.random() - 0.5) * 2.1, 0.2);
       this.effects.add(spark);
     }
   }
