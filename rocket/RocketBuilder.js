@@ -71,11 +71,41 @@ export class RocketBuilder {
     this.parts.push(part);
   }
 
-  bounds() {
-    if (!this.parts.length) return { minY: 0, maxY: 4, maxRadius: 2 };
-    const minY = Math.min(...this.parts.map((p) => p.y - p.height / 2));
-    const maxY = Math.max(...this.parts.map((p) => p.y + p.height / 2));
-    const maxRadius = Math.max(...this.parts.map((p) => Math.abs(p.x) + p.radius));
+  placeFloatingPart(partId, position, rotation = 0) {
+    const part = createPartInstance(partId);
+    part.x = position.x;
+    part.y = position.y;
+    part.rotation = rotation;
+    part.attachedTo = null;
+    this.parts.push(part);
+  }
+
+  connectedToRoot() {
+    if (!this.root) return [];
+
+    const connected = new Set([this.root]);
+    let changed = true;
+
+    while (changed) {
+      changed = false;
+      this.parts.forEach((part) => {
+        if (!part.attachedTo) return;
+        const parentUid = part.attachedTo.uid;
+        if (connected.has(parentUid) && !connected.has(part.uid)) {
+          connected.add(part.uid);
+          changed = true;
+        }
+      });
+    }
+
+    return this.parts.filter((part) => connected.has(part.uid));
+  }
+
+  bounds(parts = this.parts) {
+    if (!parts.length) return { minY: 0, maxY: 4, maxRadius: 2 };
+    const minY = Math.min(...parts.map((p) => p.y - p.height / 2));
+    const maxY = Math.max(...parts.map((p) => p.y + p.height / 2));
+    const maxRadius = Math.max(...parts.map((p) => Math.abs(p.x) + p.radius));
     return { minY, maxY, maxRadius };
   }
 }
