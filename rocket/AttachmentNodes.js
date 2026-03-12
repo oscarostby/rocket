@@ -1,3 +1,12 @@
+export function rotateLocalPosition(position, rotation = 0) {
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  return {
+    x: position.x * cos - position.y * sin,
+    y: position.x * sin + position.y * cos
+  };
+}
+
 export function isCompatible(partNodeType, targetNodeType) {
   return (partNodeType === 'stack-top' && targetNodeType === 'stack-bottom')
     || (partNodeType === 'stack-bottom' && targetNodeType === 'stack-top')
@@ -5,7 +14,8 @@ export function isCompatible(partNodeType, targetNodeType) {
 }
 
 export function nodeWorldPosition(part, node) {
-  return { x: part.x + node.nodePosition.x, y: part.y + node.nodePosition.y };
+  const local = rotateLocalPosition(node.nodePosition, part.rotation || 0);
+  return { x: part.x + local.x, y: part.y + local.y };
 }
 
 export function attachmentOffset(partNode, targetNode) {
