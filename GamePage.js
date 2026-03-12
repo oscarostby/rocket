@@ -27,7 +27,7 @@ export function createGamePage(root) {
   root.innerHTML = `<div class="game-layout">
     <aside class="panel left">
       <h2>Vehicle Assembly Building</h2>
-      <p class="panel-note">Drag parts onto nodes. Rotate with <kbd>R</kbd>. Right-mouse drag pans camera in free mode.</p>
+      <p class="panel-note">Drag parts anywhere on the grid. Parts snap cleanly when close; otherwise they stay free. Rotate with <kbd>R</kbd>. Right-mouse drag pans camera in free mode.</p>
       <div class="controls-row">
         <button id="rotate-btn" class="sub-btn">Rotate (R)</button>
         <button id="camera-mode-btn" class="sub-btn">Free Camera: Off</button>
@@ -110,14 +110,26 @@ export function createGamePage(root) {
     ].map(([k, v, c]) => `<div class="stat-row"><span>${k}</span><strong class="${c}">${v}</strong></div>`).join('');
   };
 
+  const placedParts = () => {
+    if (!state.launch?.running) return builder.parts;
+    const connected = builder.connectedToRoot();
+    return connected.length ? connected : builder.parts;
+  };
+
   const redraw = (ghostPart = null, snap = null) => {
     renderer.renderRocket(builder.parts, ghostPart);
-    const nodes = builder.getOpenNodes().map((n) => {
-      const p = builder.getPart(n.partUid);
-      return { ...n, world: nodeWorldPosition(p, n.node) };
-    });
-    renderer.renderSnapNodes(nodes, snap?.target);
-    renderer.updateCamera(builder.bounds());
+
+    if (state.dragging) {
+      const nodes = builder.getOpenNodes().map((n) => {
+        const p = builder.getPart(n.partUid);
+        return { ...n, world: nodeWorldPosition(p, n.node) };
+      });
+      renderer.renderSnapNodes(nodes, snap?.target);
+    } else {
+      renderer.renderSnapNodes([]);
+    }
+
+    renderer.updateCamera(builder.bounds(placedParts()));
     refreshStats();
     renderer.frame();
   };
@@ -169,11 +181,10 @@ export function createGamePage(root) {
     const world = renderer.screenToWorld(e.clientX, e.clientY);
     const snap = builder.findSnap(state.dragging, world, state.rotation);
 
-    let ghost = null;
-    if (snap) {
-      const part = findPart(state.dragging);
-      ghost = { ...part, x: snap.partX, y: snap.partY, rotation: state.rotation };
-    }
+    const part = findPart(state.dragging);
+    const ghost = snap
+      ? { ...part, x: snap.partX, y: snap.partY, rotation: state.rotation }
+      : { ...part, x: world.x, y: world.y, rotation: state.rotation };
 
     redraw(ghost, snap);
   });
@@ -184,6 +195,8 @@ export function createGamePage(root) {
     const world = renderer.screenToWorld(e.clientX, e.clientY);
     const snap = builder.findSnap(state.dragging, world, state.rotation);
     if (snap) builder.placePart(state.dragging, snap);
+    else builder.placeFloatingPart(state.dragging, world, state.rotation);
+    state.dragging = null;
     redraw();
   });
 

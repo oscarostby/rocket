@@ -1,6 +1,15 @@
 import { createPartInstance } from './Parts.js';
 import { isCompatible, nodeWorldPosition } from './AttachmentNodes.js';
 
+function rotatePoint(point, angle) {
+  const c = Math.cos(angle);
+  const sn = Math.sin(angle);
+  return {
+    x: point.x * c - point.y * sn,
+    y: point.x * sn + point.y * c
+  };
+}
+
 export class RocketBuilder {
   constructor() {
     this.parts = [];
@@ -30,7 +39,7 @@ export class RocketBuilder {
     return out;
   }
 
-  findSnap(partId, world, rotation = 0, threshold = 0.65) {
+  findSnap(partId, world, rotation = 0, threshold = 0.35) {
     const newPart = createPartInstance(partId);
     const candidateNodes = newPart.nodes;
     let best = null;
@@ -42,11 +51,19 @@ export class RocketBuilder {
       candidateNodes.forEach((sourceNode) => {
         if (!isCompatible(sourceNode.nodeType, target.node.nodeType)) return;
 
-        const x = targetWorld.x - sourceNode.nodePosition.x;
-        const y = targetWorld.y - sourceNode.nodePosition.y;
+        const rotatedNode = rotatePoint(sourceNode.nodePosition, rotation);
+        const x = targetWorld.x - rotatedNode.x;
+        const y = targetWorld.y - rotatedNode.y;
         const d = Math.hypot(world.x - x, world.y - y);
         if (d <= threshold && (!best || d < best.d)) {
-          best = { d, partX: x, partY: y, sourceNode, target, rotation };
+          best = {
+            d,
+            partX: x,
+            partY: y,
+            sourceNodeKey: sourceNode.key,
+            target,
+            rotation
+          };
         }
       });
     });
@@ -65,17 +82,47 @@ export class RocketBuilder {
     const targetNode = targetPart.nodes.find((n) => n.key === snap.target.nodeKey);
     if (targetNode) targetNode.occupied = true;
 
-    const sourceNode = part.nodes.find((n) => n.key === snap.sourceNode.key);
+    const sourceNode = part.nodes.find((n) => n.key === snap.sourceNodeKey);
     if (sourceNode) sourceNode.occupied = true;
 
     this.parts.push(part);
   }
 
-  bounds() {
-    if (!this.parts.length) return { minY: 0, maxY: 4, maxRadius: 2 };
-    const minY = Math.min(...this.parts.map((p) => p.y - p.height / 2));
-    const maxY = Math.max(...this.parts.map((p) => p.y + p.height / 2));
-    const maxRadius = Math.max(...this.parts.map((p) => Math.abs(p.x) + p.radius));
+  placeFloatingPart(partId, position, rotation = 0) {
+    const part = createPartInstance(partId);
+    part.x = position.x;
+    part.y = position.y;
+    part.rotation = rotation;
+    part.attachedTo = null;
+    this.parts.push(part);
+  }
+
+  connectedToRoot() {
+    if (!this.root) return [];
+
+    const connected = new Set([this.root]);
+    let changed = true;
+
+    while (changed) {
+      changed = false;
+      this.parts.forEach((part) => {
+        if (!part.attachedTo) return;
+        const parentUid = part.attachedTo.uid;
+        if (connected.has(parentUid) && !connected.has(part.uid)) {
+          connected.add(part.uid);
+          changed = true;
+        }
+      });
+    }
+
+    return this.parts.filter((part) => connected.has(part.uid));
+  }
+
+  bounds(parts = this.parts) {
+    if (!parts.length) return { minY: 0, maxY: 4, maxRadius: 2 };
+    const minY = Math.min(...parts.map((p) => p.y - p.height / 2));
+    const maxY = Math.max(...parts.map((p) => p.y + p.height / 2));
+    const maxRadius = Math.max(...parts.map((p) => Math.abs(p.x) + p.radius));
     return { minY, maxY, maxRadius };
   }
 }
